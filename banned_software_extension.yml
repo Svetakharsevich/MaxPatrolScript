@@ -1,0 +1,45 @@
+$extractors:
+  GetInstalledSoftware:
+    $template: windows_installed_software
+    $schema:
+      DisplayName: String
+      DisplayVersion: String
+      Publisher: String
+      InstallLocation: String
+      SourceRegistryKey: RegistryKey
+
+$loaders:
+  BannedSoftware:
+    - $template: mapping
+      $target: Core.Software
+      $kind: detect
+      $parent: OperatingSystem.Windows.WindowsHost
+      $origin:
+        $template: get_extractor_path
+        $name: GetInstalledSoftware
+      $guard: >
+        $or:
+          - $contains: $row.DisplayName 'Telegram'
+          - $contains: $row.DisplayName 'uTorrent'
+          - $contains: $row.DisplayName 'TeamViewer'
+          - $contains: $row.DisplayName 'AnyDesk'
+          - $contains: $row.DisplayName 'Amigo'
+          - $contains: $row.DisplayName 'AIMP'
+          - $contains: $row.DisplayName 'Kaspersky'
+          - $contains: $row.DisplayName 'Java'
+          - $contains: $row.DisplayName 'Adobe Flash'
+          - $contains: $row.DisplayName 'WinRAR'
+          - $contains: $row.DisplayName '7-Zip'
+          - $contains: $row.DisplayName 'Google Chrome'
+          - $contains: $row.DisplayName 'Mail.Ru'
+          - $contains: $row.DisplayName 'Yandex'
+          - $contains: $row.DisplayName 'VLC'
+          - $contains: $row.DisplayName 'Skype'
+          - $contains: $row.DisplayName 'Zoom'
+      $field_map:
+        Name: $row.DisplayName
+        Version: $row.DisplayVersion
+        Vendor: $row.Publisher
+        InstallPath: $row.InstallLocation
+        OsFamily: Windows
+        Architecture: $row.SourceRegistryKey.Arch

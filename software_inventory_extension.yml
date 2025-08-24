@@ -1,0 +1,161 @@
+$extractors:
+  # 1. Сбор из реестра (как в PowerShell)
+  GetInstalledSoftwareRegistry:
+    $template: registry_select
+    $paths:
+      - HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*
+      - HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*
+    $schema:
+      DisplayName: String
+      DisplayVersion: String
+      Publisher: String
+      InstallDate: String
+      InstallLocation: String
+      SourceRegistryKey: RegistryKey
+
+  # 2. Сбор через WMI (Win32_Product)
+  GetInstalledSoftwareWMI:
+    $template: wmi_query
+    $query: SELECT Name, Version, Vendor, InstallDate, InstallLocation FROM Win32_Product
+    $schema:
+      Name: String
+      Version: String
+      Vendor: String
+      InstallDate: String
+      InstallLocation: String
+
+  # 3. Анализ Prefetch-файлов (точная логика из PowerShell)
+  GetPrefetchFiles:
+    $template: glob
+    $paths:
+      - C:\Windows\Prefetch\*.pf
+    $schema:
+      Path: String
+      Name: String
+      LastWriteTime: DateTime
+
+  # 4. Анализ журналов событий Application Error
+  GetApplicationEvents:
+    $template: windows_eventlog
+    $log_name: Application
+    $provider_name: Application Error
+    $xpath: "*[System[TimeCreated[timediff(@SystemTime) <= 31536000000]]]"  # 1 год
+    $schema:
+      TimeCreated: DateTime
+      Computer: String
+      EventData: String
+
+$transformers:
+  # Извлечение имени приложения из Prefetch (как в PowerShell: $file.Name -replace '\.pf$', '')
+  ExtractAppNameFromPrefetch:
+    $template: regexp_search
+    $pattern: '(?P<AppName>.+)\.pf$'
+    $schema:
+      AppName: String
+
+  GetAppNameFromPrefetch:
+    $template: function
+    $apply: ExtractAppNameFromPrefetch
+    $output: AppName
+
+  # Извлечение имени приложения из события (как в PowerShell: $event.Properties[0].Value)
+  ExtractAppNameFromEvent:
+    $template: regexp_search
+    $pattern: 'Application: (?P<AppName>[^,]+)'
+    $schema:
+      AppName: String
+
+  GetAppNameFromEvent:
+    $template: function
+    $apply: ExtractAppNameFromEvent
+    $output: AppName
+
+$loaders:
+  # Загрузка установленного ПО из реестра
+  InstalledSoftwareRegistry:
+    - $template: mapping
+      $target: Core.Software
+      $kind: detect
+      $parent: OperatingSystem.Windows.WindowsHost
+      $origin:
+        $template: get_extractor_path
+        $name: GetInstalledSoftwareRegistry
+      $field_map:
+        Name: $row.DisplayName
+        Version: $row.DisplayVersion
+        Vendor: $row.Publisher
+        InstallDate: $row.InstallDate
+        InstallPath: $row.InstallLocation
+        OsFamily: Windows
+        Architecture: $row.SourceRegistryKey.Arch
+        AdditionalProperties:
+          Source: "Registry"
+
+  # Загрузка установленного ПО из WMI
+  InstalledSoftwareWMI:
+    - $template: mapping
+      $target: Core.Software
+      $kind: detect
+      $parent: OperatingSystem.Windows.WindowsHost
+      $origin:
+        $template: get_extractor_path
+        $name: GetInstalledSoftwareWMI
+      $field_map:
+        Name: $row.Name
+        Version: $row.Version
+        Vendor: $row.Vendor
+        InstallDate: $row.InstallDate
+        InstallPath: $row.InstallLocation
+        OsFamily: Windows
+        AdditionalProperties:
+          Source: "WMI"
+
+  # Связь Prefetch с установленным ПО (точная логика сопоставления)
+  SoftwarePrefetchUsage:
+    - $template: mapping
+      $target: Core.Software
+      $kind: scan
+      $parent: OperatingSystem.Windows.WindowsHost
+      $origin:
+        $template: get_extractor_path
+        $name: GetPrefetchFiles
+      $guard: >
+        $and:
+          - $not: $is-null $row.LastWriteTime
+          - $not: $is-null 
+            $template: apply_transformer
+            $name: GetAppNameFromPrefetch
+            $source: $row.Name
+      $field_map:
+        AdditionalProperties:
+          LastRunTime: $row.LastWriteTime
+          LastRunSource: "Prefetch"
+          LastRunApp: >
+            $template: apply_transformer
+            $name: GetAppNameFromPrefetch
+            $source: $row.Name
+
+  # Связь событий с установленным ПО (точная логика сопоставления)
+  SoftwareEventLogUsage:
+    - $template: mapping
+      $target: Core.Software
+      $kind: scan
+      $parent: OperatingSystem.Windows.WindowsHost
+      $origin:
+        $template: get_extractor_path
+        $name: GetApplicationEvents
+      $guard: >
+        $and:
+          - $not: $is-null $row.TimeCreated
+          - $not: $is-null 
+            $template: apply_transformer
+            $name: GetAppNameFromEvent
+            $source: $row.EventData
+      $field_map:
+        AdditionalProperties:
+          LastRunTime: $row.TimeCreated
+          LastRunSource: "EventLog"
+          LastRunApp: >
+            $template: apply_transformer
+            $name: GetAppNameFromEvent
+            $source: $row.EventData

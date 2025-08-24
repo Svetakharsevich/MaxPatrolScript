@@ -1,0 +1,10 @@
+Standards:
+  - Id: User.Windows
+    Name: User Essential - Windows
+    Description: Пользовательский стандарт для Windows хостов
+    Binding:
+      Entity: OperatingSystem.Windows.WindowsHost
+      DisplayName: '@Entity.Hostname'
+    Requirements:
+      - Id: User.BannedSoftwareCheck
+      - Id: User.SoftwareInventoryCheck

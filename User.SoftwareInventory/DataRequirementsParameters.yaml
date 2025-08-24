@@ -1,0 +1,7 @@
+Rules:
+  - RuleName: User.SoftwareInventoryCheck
+    RuleParameters:
+      - ParameterName: ThreeMonths
+        ParameterValue: "3"
+      - ParameterName: SixMonths  
+        ParameterValue: "6"

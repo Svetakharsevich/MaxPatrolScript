@@ -1,0 +1,37 @@
+Rules:
+  - RuleName: User.BannedSoftwareCheck
+    RuleParameters:
+      - ParameterName: Telegram
+        ParameterValue: "Telegram"
+      - ParameterName: uTorrent
+        ParameterValue: "uTorrent"
+      - ParameterName: TeamViewer
+        ParameterValue: "TeamViewer"
+      - ParameterName: AnyDesk
+        ParameterValue: "AnyDesk"
+      - ParameterName: Amigo
+        ParameterValue: "Amigo"
+      - ParameterName: AIMP
+        ParameterValue: "AIMP"
+      - ParameterName: Kaspersky
+        ParameterValue: "Kaspersky"
+      - ParameterName: Java
+        ParameterValue: "Java"
+      - ParameterName: Adobe_Flash
+        ParameterValue: "Adobe Flash"
+      - ParameterName: WinRAR
+        ParameterValue: "WinRAR"
+      - ParameterName: SevenZip
+        ParameterValue: "7-Zip"
+      - ParameterName: Google_Chrome
+        ParameterValue: "Google Chrome"
+      - ParameterName: Mail_Ru
+        ParameterValue: "Mail.Ru"
+      - ParameterName: Yandex
+        ParameterValue: "Yandex"
+      - ParameterName: VLC
+        ParameterValue: "VLC"
+      - ParameterName: Skype
+        ParameterValue: "Skype"
+      - ParameterName: Zoom
+        ParameterValue: "Zoom"

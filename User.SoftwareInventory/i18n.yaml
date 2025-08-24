@@ -1,0 +1,29 @@
+Id: User.SoftwareInventoryCheck
+Name: Анализ использования программного обеспечения
+Description: Анализ времени последнего использования ПО с категоризацией
+Summary: Категоризация ПО по времени использования
+Checks:
+  - Id: AnalyzeSoftwareUsage
+    Name: Анализ использования ПО
+    Description: Категоризация ПО по времени последнего запуска
+    DataColumns:
+      - Id: SoftwareName
+        Name: Название программы
+      - Id: Version
+        Name: Версия
+      - Id: Vendor
+        Name: Издатель
+      - Id: InstallDate
+        Name: Дата установки
+      - Id: LastRunTime
+        Name: Время последнего запуска
+      - Id: UsageCategory
+        Name: Категория использования
+      - Id: Source
+        Name: Источник данных
+      - Id: LastRunSource
+        Name: Источник времени запуска
+    Results:
+      - Verdict: Info
+        Reason: "Проанализировано {0} программ"
+        Instruction: "Завершен анализ использования ПО"

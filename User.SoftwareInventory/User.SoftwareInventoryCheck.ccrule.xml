@@ -1,0 +1,64 @@
+<rules>
+    <![CDATA[
+
+data_requirement_rule User.SoftwareInventoryCheck (
+    @Entity=OperatingSystem.Windows.WindowsHost,
+    @DisplayName=@Entity.Hostname
+)
+
+computability {
+    return @Entity.Softs.Any();
+}
+
+check AnalyzeSoftwareUsage()
+{
+    checkData
+    {
+        // Точная логика из PowerShell
+        var @threeMonthsAgo = DateTime.Now.AddMonths(-3);
+        var @sixMonthsAgo = DateTime.Now.AddMonths(-6);
+        
+        var @softwareAnalysis = @Entity.Softs.Select(@soft => {
+            var @lastRun = @soft.AdditionalProperties.LastRunTime;
+            var @installDate = @soft.InstallDate;
+            
+            // Точная логика категоризации из PowerShell
+            string @usageCategory;
+            if (@lastRun != null) {
+                if (@lastRun < @sixMonthsAgo) {
+                    @usageCategory = "Редко используется (6+ месяцев)";
+                } else if (@lastRun < @threeMonthsAgo) {
+                    @usageCategory = "Использовалось иногда (3-6 месяцев)";
+                } else {
+                    @usageCategory = "Использовалось недавно (0-3 месяца)";
+                }
+            } else if (@installDate != null) {
+                var @installDateTime = DateTime.Parse(@installDate);
+                if (@installDateTime < @sixMonthsAgo) {
+                    @usageCategory = "Время использования неизвестно (старая установка)";
+                } else {
+                    @usageCategory = "Время использования неизвестно (недавняя установка)";
+                }
+            } else {
+                @usageCategory = "Время использования неизвестно (нет данных)";
+            }
+            
+            return dynamic{
+                SoftwareName = @soft.Name,
+                Version = @soft.Version,
+                Vendor = @soft.Vendor,
+                InstallDate = @installDate,
+                LastRunTime = @lastRun,
+                UsageCategory = @usageCategory,
+                Source = @soft.AdditionalProperties.Source,
+                LastRunSource = @soft.AdditionalProperties.LastRunSource
+            };
+        });
+
+        filterByParameters(@softwareAnalysis);
+        return SUCCESS;
+    }
+}
+
+]]>
+</rules>
