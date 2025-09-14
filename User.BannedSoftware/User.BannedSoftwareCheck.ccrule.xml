@@ -6,25 +6,7 @@ data_requirement_rule User.BannedSoftwareCheck (
     @DisplayName=@Entity.Hostname
 )
 
-params (
-    @Telegram string,
-    @uTorrent string,
-    @TeamViewer string,
-    @AnyDesk string,
-    @Amigo string,
-    @AIMP string,
-    @Kaspersky string,
-    @Java string,
-    @Adobe_Flash string,
-    @WinRAR string,
-    @SevenZip string,
-    @Google_Chrome string,
-    @Mail_Ru string,
-    @Yandex string,
-    @VLC string,
-    @Skype string,
-    @Zoom string
-)
+// ПАРАМЕТРЫ УБРАНЫ - никаких списков!
 
 computability {
     return @Entity.Softs.Any();
@@ -38,24 +20,47 @@ check DetectBannedSoftware()
 
     checkData
     {
-        var @bannedSoftware = @Entity.Softs.Where(@soft => 
-            @soft.Name.Contains(@Telegram) ||
-            @soft.Name.Contains(@uTorrent) ||
-            @soft.Name.Contains(@TeamViewer) ||
-            @soft.Name.Contains(@AnyDesk) ||
-            @soft.Name.Contains(@Amigo) ||
-            @soft.Name.Contains(@AIMP) ||
-            @soft.Name.Contains(@Kaspersky) ||
-            @soft.Name.Contains(@Java) ||
-            @soft.Name.Contains(@Adobe_Flash) ||
-            @soft.Name.Contains(@WinRAR) ||
-            @soft.Name.Contains(@SevenZip) ||
-            @soft.Name.Contains(@Google_Chrome) ||
-            @soft.Name.Contains(@Mail_Ru) ||
-            @soft.Name.Contains(@Yandex) ||
-            @soft.Name.Contains(@VLC) ||
-            @soft.Name.Contains(@Skype) ||
-            @soft.Name.Contains(@Zoom)
+        // Удаляем дубликаты ПО по имени и версии
+        var @uniqueSofts = @Entity.Softs
+            .GroupBy(@soft => new { 
+                Name = @soft.Name?.ToLower(), 
+                Version = @soft.Version?.ToLower() 
+            })
+            .Select(@group => @group.First());
+        
+        // ПОВЕДЕНЧЕСКИЙ АНАЛИЗ БЕЗ СПИСКОВ!
+        var @bannedSoftware = @uniqueSofts.Where(@soft => 
+            // Торрент-клиенты
+            @soft.Name.Contains("torrent", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Name.Contains("utorrent", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Name.Contains("bittorrent", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Name.Contains("p2p", StringComparison.OrdinalIgnoreCase) ||
+            
+            // Удаленный доступ
+            @soft.Name.Contains("teamviewer", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Name.Contains("anydesk", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Name.Contains("remote", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Name.Contains("rdp", StringComparison.OrdinalIgnoreCase) ||
+            
+            // Нежелательное ПО
+            @soft.Name.Contains("crack", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Name.Contains("keygen", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Name.Contains("hack", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Name.Contains("loader", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Name.Contains("patch", StringComparison.OrdinalIgnoreCase) ||
+            
+            // Запрещенные издатели
+            @soft.Vendor.Contains("Mail.Ru", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Vendor.Contains("Yandex", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Vendor.Contains("Amigo", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Vendor.Contains("Pirate", StringComparison.OrdinalIgnoreCase) ||
+            
+            // Мессенджеры и другое ПО
+            @soft.Name.Contains("telegram", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Name.Contains("skype", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Name.Contains("zoom", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Name.Contains("aimp", StringComparison.OrdinalIgnoreCase) ||
+            @soft.Name.Contains("vlc", StringComparison.OrdinalIgnoreCase)
         );
 
         var @bannedDetails = @bannedSoftware.Select(@soft => dynamic{

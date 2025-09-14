@@ -1,45 +1,146 @@
 $extractors:
-  GetInstalledSoftware:
-    $template: windows_installed_software
-    $schema:
-      DisplayName: String
-      DisplayVersion: String
-      Publisher: String
-      InstallLocation: String
-      SourceRegistryKey: RegistryKey
+  # 1. Сканируем ВСЕ исполняемые файлы - БЕЗ СПИСКА!
+  ScanAllExecutables:
+    $template: windows_file_info_recursive
+    $filemasks:
+    - ".*\.exe"  # ВСЕ exe-файлы
+    - ".*\.msi"  # ВСЕ msi-файлы
+    $dirs:
+    - C:\Program Files
+    - C:\Program Files (x86)
+    - C:\Users
+    $ignorlist:
+    - Windows
+    - Microsoft
+    - \$Recycle.Bin
+    - Temp
+    $usesymlinks: false
+
+$transformers:
+  # 2. Анализ БЕЗ СПИСКА - через поведенческие паттерны
+  AnalyzeByPatterns:
+    $template: function
+    $apply: |
+      function(file) {
+        var filename = (file.OriginalFilename || '').toLowerCase();
+        var productname = (file.ProductName || '').toLowerCase();
+        var company = (file.CompanyName || '').toLowerCase();
+        var filepath = (file.Path || '').toLowerCase();
+        
+        // 1. ТОРРЕНТ-КЛИЕНТЫ
+        if (filename.includes('torrent') || filename.includes('utorrent') || 
+            filename.includes('bittorrent') || filename.includes('qbittorrent') ||
+            productname.includes('torrent') || productname.includes('utorrent')) {
+          return {
+            IsBanned: true,
+            Reason: "Торрент-клиент",
+            Evidence: filename + " | " + productname,
+            Type: "torrent"
+          };
+        }
+        
+        // 2. УДАЛЕННЫЙ ДОСТУП
+        if (filename.includes('teamviewer') || filename.includes('anydesk') ||
+            filename.includes('remote') || filename.includes('rdp') ||
+            productname.includes('teamviewer') || productname.includes('anydesk')) {
+          return {
+            IsBanned: true,
+            Reason: "ПО удаленного доступа", 
+            Evidence: filename + " | " + productname,
+            Type: "remote"
+          };
+        }
+        
+        // 3. НЕЖЕЛАТЕЛЬНОЕ ПО
+        if (filename.includes('crack') || filename.includes('keygen') ||
+            filename.includes('hack') || filename.includes('loader') ||
+            productname.includes('crack') || productname.includes('keygen')) {
+          return {
+            IsBanned: true,
+            Reason: "Нежелательное ПО",
+            Evidence: filename + " | " + productname,
+            Type: "unwanted"
+          };
+        }
+        
+        // 4. ЗАПРЕЩЕННЫЕ ИЗДАТЕЛИ
+        if (company.includes('mail.ru') || company.includes('yandex') ||
+            company.includes('amigo') || company.includes('pirate')) {
+          return {
+            IsBanned: true,
+            Reason: "Запрещенный издатель",
+            Evidence: company,
+            Type: "publisher"
+          };
+        }
+        
+        return { IsBanned: false };
+      }
+
+  # 3. Конвертация в объекты Software
+  ConvertToSoftwareObject:
+    $template: function
+    $apply: |
+      function(file) {
+        return {
+          DisplayName: file.ProductName || file.OriginalFilename || "Unknown",
+          DisplayVersion: file.ProductVersion || file.FileVersion || "",
+          Publisher: file.CompanyName || "",
+          InstallLocation: file.Path || "",
+          Source: "file_analysis"
+        };
+      }
 
 $loaders:
+  # 4. Основной загрузчик - БЕЗ СПИСКА В GUARD!
   BannedSoftware:
     - $template: mapping
       $target: Core.Software
       $kind: detect
       $parent: OperatingSystem.Windows.WindowsHost
       $origin:
-        $template: get_extractor_path
-        $name: GetInstalledSoftware
-      $guard: >
-        $or:
-          - $contains: $row.DisplayName 'Telegram'
-          - $contains: $row.DisplayName 'uTorrent'
-          - $contains: $row.DisplayName 'TeamViewer'
-          - $contains: $row.DisplayName 'AnyDesk'
-          - $contains: $row.DisplayName 'Amigo'
-          - $contains: $row.DisplayName 'AIMP'
-          - $contains: $row.DisplayName 'Kaspersky'
-          - $contains: $row.DisplayName 'Java'
-          - $contains: $row.DisplayName 'Adobe Flash'
-          - $contains: $row.DisplayName 'WinRAR'
-          - $contains: $row.DisplayName '7-Zip'
-          - $contains: $row.DisplayName 'Google Chrome'
-          - $contains: $row.DisplayName 'Mail.Ru'
-          - $contains: $row.DisplayName 'Yandex'
-          - $contains: $row.DisplayName 'VLC'
-          - $contains: $row.DisplayName 'Skype'
-          - $contains: $row.DisplayName 'Zoom'
+        $template: apply_transformer
+        $name: ConvertToSoftwareObject
+        $source: 
+          $template: get_extractor_data
+          $name: ScanAllExecutables
+      $filter:
+        $template: apply_transformer
+        $name: AnalyzeByPatterns
+        $source: $row
+        $output: IsBanned
+        $equals: true
       $field_map:
         Name: $row.DisplayName
         Version: $row.DisplayVersion
         Vendor: $row.Publisher
         InstallPath: $row.InstallLocation
         OsFamily: Windows
-        Architecture: $row.SourceRegistryKey.Arch
+        Architecture: Unknown
+
+  # 5. Детальный отчет
+  FileAnalysisReport:
+    - $template: report
+      $title: "Обнаружение запрещенного ПО через FileInfo"
+      $severity: high
+      $data:
+        $template: apply_transformer
+        $name: AnalyzeByPatterns
+        $source: 
+          $template: get_extractor_data
+          $name: ScanAllExecutables
+      $filter:
+        $template: function
+        $apply: |
+          function(row) {
+            return row.IsBanned === true;
+          }
+      $fields:
+        - name: "Тип"
+          value: $row.Type
+        - name: "Причина"
+          value: $row.Reason
+        - name: "Обнаружение"
+          value: $row.Evidence
+        - name: "Путь"
+          value: $row.Path
